@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import codecs
 import json
 import math
-import sys
 
 class LanguageModel:
     """Language model based on a lexicon and a character n-gram Markov model.
-
-    Description...
     """
 
     # Symbols to mark start and end of a sequence.
@@ -26,7 +24,7 @@ class LanguageModel:
     # but "Is" will rather start an Irish and "A" an English one.
     CASE_SENSITIVITY_THRESHOLD = 4
 
-    def __init__(self, language, n, lex_file, lex_weight):
+    def __init__(self, language, n, lex_file, lex_weight=1):
         """Initialises the language model.
 
         Args:
@@ -54,12 +52,13 @@ class LanguageModel:
         """Saves the language model to the specified file in JSON format"""
         if file_name is None:
             file_name = self.language + ".model"
-        with open(file_name, "wb") as f:
+        with open(file_name, "w") as f:
             json.dump([self.language, self.n,
                        self.start_prob, self.trans_prob], f)
+        print("Saved model at: %s" % file_name)
 
     @classmethod
-    def load(cls, model_file, lex_file, lex_weight):
+    def load(cls, model_file, lex_file, lex_weight=1):
         """Loads the language model from the specified file
 
         Args:
@@ -67,7 +66,7 @@ class LanguageModel:
             lex_file (str): Frequency lexicon file name
             lex_weight (float): Weight of the lexicon vs. the character model.
         """
-        with open(model_file, "rb") as f:
+        with open(model_file) as f:
             language, n, start_prob, trans_prob = json.load(f)
             model = cls(language, n, lex_file, lex_weight)
             model.start_prob = start_prob
@@ -89,11 +88,10 @@ class LanguageModel:
         """
         lamb = 0.1 # smoothing value
 
-        with open(lex_file) as f:
+        with codecs.open(lex_file, encoding='utf-8') as f:
             lex = {}
             total = 0
             for line in f:
-                line = line.decode("utf-8")
                 fields = line.strip().split()
                 word = fields[0]
                 if len(fields[0]) >= self.CASE_SENSITIVITY_THRESHOLD:
@@ -120,7 +118,6 @@ class LanguageModel:
 
         Enabling <debug> allows inspecting individual transition probabilities.
         """
-        #word = word.decode("utf-8")
         ngrams = self.word2ngrams(word, self.n)
         logp = 0
         # Add starting probability
@@ -141,7 +138,7 @@ class LanguageModel:
                 logp += self.trans_prob[ngrams[i]][ngrams[i+1]]
                 debugstr += " " + ngrams[i] + " " + str(self.trans_prob[ngrams[i]][ngrams[i+1]])
         if debug:
-            print debugstr
+            print(debugstr)
         return logp
 
     def train(self, smooth_lambda=0.001):
@@ -166,12 +163,11 @@ class LanguageModel:
         charset = set()
 
         n = self.n
-        print "Training " + str(n) + "-gram model for language: " + self.language
+        print("Training %d-gram model for language: %s" % (n, self.language))
 
         # Calculate counts
-        with open(self.lex_file) as f:
+        with codecs.open(self.lex_file, encoding='utf-8') as f:
             for line in f:
-                line = line.decode("utf-8")
                 fields = line.strip().split()
                 token = self.START + fields[0] + self.END
                 token_count = int(fields[1])
@@ -205,4 +201,4 @@ class LanguageModel:
                     trans_count[ngram][next_ngram] / denominator)
             self.trans_prob[ngram][self.UNKNOWN] = math.log(lamb / denominator)
 
-        print "Model trained on " + str(token_total) + " tokens"
+        print("Model trained on %d tokens" % token_total)
